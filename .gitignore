@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*~
+.DS_Store
+sod_tube_results*/ 
+sod_tube_hllc_variants*/
+venv/
+.venv/
+*.log
+*.aux
+*.out
