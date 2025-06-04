@@ -1,6 +1,6 @@
 import numpy as np
 
-def setup_mesh_1d(N_cells, domain_length):
+def setup_mesh(N_cells, domain_length):
     """
     Sets up a simple 1D uniform mesh.
 

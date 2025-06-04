@@ -2,19 +2,19 @@
     "simulation_setup": {
         "N_cells": 200,
         "domain_length": 1.0,
-        "t_final": 0.4,
+        "t_final": 0.2,
         "CFL": 0.4,
         "problem_type": "sod_shock_tube"
     },
     "numerical_schemes": {
-        "spatial_scheme": "muscl", 
-        "time_integrator": "ssprk2",
-        "riemann_solver": "hllc",
+        "spatial_scheme": "first_order", 
+        "time_integrator": "euler",
+        "riemann_solver": "hll",
         "hllc_wave_speeds": "roe_einfeldt" 
     },
     "boundary_conditions": {
         "left_bc_type": "transmissive",
-        "right_bc_type": "reflective"
+        "right_bc_type": "transmissive"
     },
     "eos_parameters": {
         "type": "ideal_gas",

@@ -1,8 +1,8 @@
 import numpy as np
-from utils import primitive_to_conserved_1d 
+from utils import primitive_to_conserved
 import constants 
 
-def initialize_state_1d(N_cells, cell_centers, cell_interfaces, gamma_val,
+def initialize_state(N_cells, cell_centers, cell_interfaces, gamma_val,
                         problem_type="sod_shock_tube", **problem_params):
     """
     Initializes the 1D conserved state vector U.
@@ -41,8 +41,8 @@ def initialize_state_1d(N_cells, cell_centers, cell_interfaces, gamma_val,
         print(f"  Right State: rho={rho_R}, u={u_R}, p={p_R}")
         print(f"  Diaphragm at x = {diaphragm_x_position:.3f}")
 
-        U_L_conserved = primitive_to_conserved_1d(rho_L, u_L, p_L, gamma_val)
-        U_R_conserved = primitive_to_conserved_1d(rho_R, u_R, p_R, gamma_val)
+        U_L_conserved = primitive_to_conserved(rho_L, u_L, p_L, gamma_val)
+        U_R_conserved = primitive_to_conserved(rho_R, u_R, p_R, gamma_val)
 
         for i in range(N_cells):
             if cell_centers[i] < diaphragm_x_position:
@@ -55,7 +55,7 @@ def initialize_state_1d(N_cells, cell_centers, cell_interfaces, gamma_val,
         u0 = problem_params.get("u0", 0.1)
         p0 = problem_params.get("p0", 1.0)
         print(f"\nInitializing 1D Uniform Flow: rho0={rho0}, u0={u0}, p0={p0}")
-        U_cell_conserved = primitive_to_conserved_1d(rho0, u0, p0, gamma_val)
+        U_cell_conserved = primitive_to_conserved(rho0, u0, p0, gamma_val)
         # Fill the entire U_initial array with this constant state
         for i in range(N_cells):
             U_initial[:, i] = U_cell_conserved

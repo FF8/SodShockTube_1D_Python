@@ -4,7 +4,7 @@ from mesh_setup import setup_mesh
 from initial_conditions import initialize_state
 from utils import conserved_to_primitive, primitive_to_conserved
 from riemann_solvers import hll_solver, hllc_solver
-from schemes_spatial import minmod_limiter
+from schemes_spatial import calculate_muscl_slopes, minmod_limiter 
 
 # gamma would be passed as an argument to functions here, not global to this file
 # unless run_simulation sets a module-level one for its callees if they are also in this file
@@ -23,15 +23,7 @@ def calculate_rhs_for_stage(U_stage, N_cells, dx, gamma_eos, scheme,
     slopes_s = np.zeros_like(U_stage) # Array for limited slopes, shape (3, N_cells)
 
     if scheme == constants.SCHEME_MUSCL:
-        # Handle interior cells for slopes
-        for i in range(1, N_cells - 1):
-            delta_L = U_stage[:, i] - U_stage[:, i-1]
-            delta_R = U_stage[:, i+1] - U_stage[:, i]
-            slopes_s[:, i] = minmod_limiter(delta_L, delta_R) # Applied component-wise
-
-        # Boundary slopes (simplest: zero slope)
-        slopes_s[:, 0] = 0.0
-        slopes_s[:, N_cells-1] = 0.0
+        slopes_s = calculate_muscl_slopes(U_stage, N_cells, limiter_func=minmod_limiter)
     
     # F_numerical_fluxes stores fluxes at interfaces: F_{i-1/2} and F_{i+1/2} for cell i
     # Size: (3, N_cells + 1). F_numerical_fluxes[:, j] is flux at interface j.
@@ -111,7 +103,7 @@ def calculate_rhs_for_stage(U_stage, N_cells, dx, gamma_eos, scheme,
 def run_simulation(N_cells, domain_length, t_final, C_cfl,
                    problem_type,
                    scheme, time_integrator, riemann_solver,
-                   bc_left_type, bc_right_type,
+                   bc_left, bc_right,
                    hllc_wave_speed_config,
                    gamma_eos): 
     """
@@ -131,7 +123,7 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
     print(f"Starting 1D simulation: N_cells={N_cells}, Scheme={scheme}, Integrator={time_integrator}, Riemann={riemann_solver}", end="")
     if riemann_solver == constants.SOLVER_HLLC:
         print(f" (HLLC Wave Speeds: {hllc_wave_speed_config})", end="")
-    print(f"\nBC Left: {bc_left_type}, BC Right: {bc_right_type}, t_final={t_final}, C_cfl={C_cfl}")
+    print(f"\nBC Left: {bc_left}, BC Right: {bc_right}, t_final={t_final}, C_cfl={C_cfl}")
 
     while t < t_final:
         # --- Calculate Time Step (dt) based on CFL condition ---
@@ -159,8 +151,7 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
         rhs_args = {
             "N_cells": N_cells, "dx": dx, "gamma_eos": gamma_eos, "scheme": scheme,
             "riemann_solver_choice": riemann_solver,
-            "bc_left_type": bc_left_type, "bc_right_type": bc_right_type,
-            "t_sim_current": t, "dt_cfl_step": dt, # For potential debug prints inside RHS
+            "bc_left": bc_left, "bc_right": bc_right,
             "hllc_wave_method": hllc_wave_speed_config
         }
 
@@ -169,15 +160,11 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
             RHS_n = calculate_rhs_for_stage(U_current, **rhs_args)
             U_next = U_current + dt * RHS_n
         elif time_integrator == constants.INTEGRATOR_SSPRK2:
-            # Stage 1
+
             RHS_n = calculate_rhs_for_stage(U_current, **rhs_args)
             U_intermediate = U_current + dt * RHS_n
             
-            # Stage 2 - update t_sim_current if RHS function uses it for debug logic
-            rhs_args_stage2 = rhs_args.copy()
-            rhs_args_stage2["t_sim_current"] = t + dt # Time at which U_intermediate is representative
-            
-            RHS_intermediate = calculate_rhs_for_stage(U_intermediate, **rhs_args_stage2)
+            RHS_intermediate = calculate_rhs_for_stage(U_intermediate, **rhs_args)
             U_next = 0.5 * U_current + 0.5 * (U_intermediate + dt * RHS_intermediate)
         else:
             raise ValueError(f"Unknown time integrator: {time_integrator}")

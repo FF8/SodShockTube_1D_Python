@@ -128,11 +128,11 @@ def main():
     print(f"\n--- STARTING SIMULATION (using gamma = {gamma}) ---")
     
    
-    '''
+    
     cell_centers_res, T_res, U_res_list = run_simulation(
         N_cells=N_cells_sim, domain_length=domain_length_sim, t_final=t_final_sim, C_cfl=C_cfl_sim,
         problem_type=problem_type_sim, scheme=current_scheme, time_integrator=current_time_integrator,
-        riemann_solver=current_riemann_solver, bc_left_type=current_bc_left, bc_right_type=current_bc_right,
+        riemann_solver=current_riemann_solver, bc_left=current_bc_left, bc_right=current_bc_right,
         hllc_wave_speed_config=current_hllc_wave_speeds,
         gamma_eos=gamma # Explicitly passing gamma, which run_simulation can then pass to its callees
     )
@@ -145,7 +145,7 @@ def main():
         run_params_for_saving["T_final_achieved_output"] = T_final_achieved
         save_results_to_csv(output_base_dir, run_params_for_saving, cell_centers_res, T_final_achieved, 
                             rho_numerical, p_numerical, u_numerical, e_internal_numerical)
-    '''
+    
 
 if __name__ == "__main__":
     main()
