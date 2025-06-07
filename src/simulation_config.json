@@ -3,13 +3,13 @@
         "N_cells": 200,
         "domain_length": 1.0,
         "t_final": 0.2,
-        "CFL": 0.4,
+        "CFL": 0.5,
         "problem_type": "sod_shock_tube"
     },
     "numerical_schemes": {
-        "spatial_scheme": "first_order", 
-        "time_integrator": "euler",
-        "riemann_solver": "hll",
+        "spatial_scheme": "linear", 
+        "time_integrator": "ssprk2",
+        "riemann_solver": "hllc",
         "hllc_wave_speeds": "roe_einfeldt" 
     },
     "boundary_conditions": {
@@ -21,7 +21,9 @@
         "gamma": 1.4
     },
     "output_control": {
-        "base_output_directory": "results_from_config",
-        "results_save_frequency": 100 
+        "save_results": true,
+        "plot_results": true,
+        "plot_against_analytical_0.2s": true,
+        "create_animation": false 
     }
 }

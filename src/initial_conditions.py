@@ -1,6 +1,5 @@
 import numpy as np
 from utils import primitive_to_conserved
-import constants 
 
 def initialize_state(N_cells, cell_centers, cell_interfaces, gamma_val,
                         problem_type="sod_shock_tube", **problem_params):
