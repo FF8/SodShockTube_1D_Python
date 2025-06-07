@@ -1,10 +1,13 @@
 import numpy as np
 import constants 
+import os
+import shutil
 from mesh_setup import setup_mesh
 from initial_conditions import initialize_state
 from utils import conserved_to_primitive, primitive_to_conserved
 from riemann_solvers import hll_solver, hllc_solver
 from schemes_spatial import calculate_muscl_slopes, minmod_limiter 
+from postprocessing_1d import plot_and_save_single_frame
 
 # gamma would be passed as an argument to functions here, not global to this file
 # unless run_simulation sets a module-level one for its callees if they are also in this file
@@ -105,7 +108,7 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
                    scheme, time_integrator, riemann_solver,
                    bc_left, bc_right,
                    hllc_wave_speed_config,
-                   gamma_eos): 
+                   gamma_eos, create_animation_flag=False, animation_params={}): 
     """
     Main loop for the 1D Euler solver.
     """
@@ -114,6 +117,16 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
     
     U_current = initialize_state(N_cells, cell_centers, cell_interfaces, gamma_eos,
                                     problem_type=problem_type, ) 
+    
+
+    # --- Setup for Animation Frames ---
+    if create_animation_flag:
+        anim_dir = animation_params.get("dir", "animation_frames")
+        anim_freq = animation_params.get("freq", 20) # Save a frame every 20 iterations
+        if os.path.exists(anim_dir):
+            shutil.rmtree(anim_dir) # Clear old frames
+        os.makedirs(anim_dir)
+        print(f"Animation frames will be saved in: {anim_dir}")
     
     t = 0.0
     iteration = 0
@@ -125,6 +138,8 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
         print(f" (HLLC Wave Speeds: {hllc_wave_speed_config})", end="")
     print(f"\nBC Left: {bc_left}, BC Right: {bc_right}, t_final={t_final}, C_cfl={C_cfl}")
 
+
+    frame_count = 0
     while t < t_final:
         # --- Calculate Time Step (dt) based on CFL condition ---
         S_max_global = 0.0
@@ -168,10 +183,29 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
             U_next = 0.5 * U_current + 0.5 * (U_intermediate + dt * RHS_intermediate)
         else:
             raise ValueError(f"Unknown time integrator: {time_integrator}")
+        
+        # --- Save Animation Frame Periodically ---
+        if create_animation_flag and iteration % anim_freq == 0:
+            rho_frame, u_frame, p_frame = conserved_to_primitive(U_current, gamma_eos)
+            e_frame = p_frame / ((gamma_eos - 1.0) * rho_frame + constants.EPSILON)
+            # Create a dictionary of parameters for the plot title
+            current_run_params = {
+                "N_cells": N_cells, "CFL": C_cfl, "scheme": scheme, "integrator": time_integrator,
+                "solver": riemann_solver, "hllc_wave_speeds": hllc_wave_speed_config
+            }
+            plot_and_save_single_frame(
+                anim_dir, frame_count, cell_centers, t,
+                rho_frame, p_frame, u_frame, e_frame,
+                current_run_params
+            )
+            frame_count += 1
+            print(f"  Saved animation frame {frame_count-1} at t={t:.4f}")
+
 
         U_current = U_next
         t += dt
         iteration += 1
+
         
         if iteration % 50 == 0: 
             results_t.append(t)
