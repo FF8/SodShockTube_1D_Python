@@ -15,7 +15,7 @@ def hll_solver(U_L_input, U_R_input, gamma_val):
     a_L = np.sqrt(gamma_val * p_L / rho_L)
     a_R = np.sqrt(gamma_val * p_R / rho_R)
 
-    S_L = min(u_L - a_L, u_R - a_R)
+    S_L = min(u_L - a_L, u_R - a_R) # Using Simple Eigenvalue Bounds
     S_R = max(u_L + a_L, u_R + a_R)
 
     if 0 <= S_L:
@@ -100,7 +100,7 @@ def hllc_solver(U_L_input, U_R_input, gamma_val,
         S_M = (u_L + u_R) / 2.0 # Fallback for S_M
         # print(f"Warning: Denominator for S_M near zero. S_M set to avg vel: {S_M}")
     else:
-        S_M = num_SM / den_SM
+        S_M = num_SM / den_SM # Using Toro, Eq. 10.38
     
     # Optional: Check/Clamp S_M to be between S_L and S_R for robustness
     #S_L_eff, S_R_eff = min(S_L, S_R), max(S_L, S_R) # Ensure S_L_eff <= S_R_eff
