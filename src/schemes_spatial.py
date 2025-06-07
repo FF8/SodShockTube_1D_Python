@@ -1,7 +1,6 @@
 # Functions related to spatial discretization schemes, e.g., MUSCL.
 
 import numpy as np
-import constants 
 
 def minmod_limiter(a, b):
     """
