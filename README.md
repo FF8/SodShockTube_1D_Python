@@ -8,7 +8,38 @@ This code has been developed for learning purposes to explore fundamental concep
 
 ## Core Features
 
-* 1D Euler Equations for compressible, inviscid flow.
+* **Governing Equations:** 1D Euler equations for compressible, inviscid flow.
+
+* **Numerical Method:** Cell-centered Finite Volume Method (FVM).
+
+* **Spatial Discretization Schemes:**
+    * **First-Order:** Standard Godunov-type scheme with piecewise constant reconstruction.
+    * **Second-Order MUSCL:** A higher-order scheme for sharper results, featuring:
+        * Piecewise linear data reconstruction.
+        * `minmod` slope limiter to prevent spurious oscillations.
+
+* **Time Integration Schemes:**
+    * **Forward Euler:** First-order accurate.
+    * **SSPRK2:** A second-order Strong Stability Preserving Runge-Kutta method for improved accuracy and stability with MUSCL.
+
+* **Riemann Solvers:**
+    * **HLL:** A robust, approximate Riemann solver.
+    * **HLLC:** A more accurate solver that fully resolves contact discontinuities, with selectable wave speed estimation methods:
+        * `simple_bounds`: Based on simple eigenvalue estimates.
+        * `roe_einfeldt`: Based on more robust Roe Averages.
+
+* **Boundary Conditions:**
+    * **Transmissive:** For outflow boundaries, allowing waves to leave the domain.
+    * **Reflective:** For simulating solid walls where waves reflect.
+
+* **Equation of State (EOS):**
+    * Ideal Gas Law, with a configurable adiabatic index (`gamma`).
+
+* **Workflow and Usability:**
+    * Simulation parameters are controlled via an external **JSON configuration file**.
+    * Modular Python code structure (e.g., `riemann_solvers.py`, `schemes_spatial.py`, etc.).
+    * Automated saving of results to uniquely named directories or a fixed "output" folder.
+    * Separate post-processing script for plotting results and creating animations from saved frames.
 
 
 ## Running the Code
