@@ -6,52 +6,6 @@ import shutil
 import constants 
 from utils import conserved_to_primitive
 
-def save_results_to_csv(output_dir_name, params, cell_centers, T_final, rho, p, u, e_internal):
-    """
-    Saves simulation parameters and final results to CSV files in a specified directory.
-    This version will overwrite the directory if it exists.
-
-    Args:
-        output_dir_name (str): The name of the output directory (e.g., "output").
-        params (dict): Dictionary of simulation parameters for saving in params.txt.
-        cell_centers (np.ndarray): Array of cell center coordinates.
-        T_final (float): The final time of the simulation for these results.
-        rho (np.ndarray): Density array.
-        p (np.ndarray): Pressure array.
-        u (np.ndarray): Velocity array.
-        e_internal (np.ndarray): Specific internal energy array.
-    """
-    # If the output directory exists, remove it to ensure a clean overwrite
-    if os.path.exists(output_dir_name):
-        shutil.rmtree(output_dir_name)
-        print(f"Removed existing output directory: {output_dir_name}")
-    
-    try:
-        os.makedirs(output_dir_name, exist_ok=True) # exist_ok=True is fine, but rmtree handles overwrite
-        print(f"Saving results to: {output_dir_name}")
-
-        # Save parameters to a text file
-        with open(os.path.join(output_dir_name, "params.txt"), "w") as f:
-            for key, value in params.items():
-                f.write(f"{key}: {value}\n")
-            # T_final is already in params as T_final_achieved_output or T_final_target
-
-        # Helper to save data
-        def save_array_csv(filename, arr1, arr2, header_str):
-            filepath = os.path.join(output_dir_name, filename)
-            data_to_save = np.column_stack((arr1, arr2))
-            np.savetxt(filepath, data_to_save, delimiter=',', header=header_str, comments='')
-
-        # save_array_csv("cell_centers.csv", np.arange(len(cell_centers)), cell_centers, "index,x_center")
-        save_array_csv("density.csv", cell_centers, rho, "x_center,density")
-        save_array_csv("pressure.csv", cell_centers, p, "x_center,pressure")
-        save_array_csv("velocity.csv", cell_centers, u, "x_center,velocity")
-        save_array_csv("internal_energy.csv", cell_centers, e_internal, "x_center,internal_energy")
-
-        print("Results saved successfully.")
-        
-    except Exception as e:
-        print(f"Error saving results to {output_dir_name}: {e}")
 
 def load_analytical_data_1d(analytical_data_path, filename, x_scale_factor=1.0, skiprows=1, delimiter=','):
     """
@@ -215,3 +169,42 @@ def plot_and_save_single_frame(output_dir, frame_number,
     frame_filename = os.path.join(output_dir, f"frame_{frame_number:04d}.png")
     plt.savefig(frame_filename, dpi=100) # dpi controls resolution
     plt.close(fig) # IMPORTANT: Close the figure to free up memory
+
+
+
+def save_time_history_data(output_dir_name, params, cell_centers, T_list, U_list):
+    """
+    Saves the entire time history of the simulation to CSV files.
+    """
+    if os.path.exists(output_dir_name):
+        shutil.rmtree(output_dir_name)
+    os.makedirs(output_dir_name)
+    print(f"\nSaving time history results to: {output_dir_name}")
+
+    try:
+        with open(os.path.join(output_dir_name, "params.txt"), "w") as f:
+            for key, value in params.items():
+                f.write(f"{key}: {value}\n")
+
+        gamma_run = params.get('gamma_eos', 1.4)
+        U_history_arr = np.stack(U_list, axis=-1)
+        rho_hist, u_hist, p_hist = conserved_to_primitive(U_history_arr, gamma_run)
+        e_hist = p_hist / ((gamma_run - 1.0) * np.maximum(rho_hist, constants.EPSILON) + constants.EPSILON)
+        
+        time_header = ",".join([f"{t:.6f}" for t in T_list])
+        csv_header = f"x_center,{time_header}"
+
+        def save_history_csv(filename, x_coords, data_history, header_str):
+            filepath = os.path.join(output_dir_name, filename)
+            data_to_save = np.column_stack((x_coords, data_history))
+            np.savetxt(filepath, data_to_save, delimiter=',', header=header_str, comments='')
+
+        save_history_csv("density_history.csv", cell_centers, rho_hist, csv_header)
+        save_history_csv("pressure_history.csv", cell_centers, p_hist, csv_header)
+        save_history_csv("velocity_history.csv", cell_centers, u_hist, csv_header)
+        save_history_csv("internal_energy_history.csv", cell_centers, e_hist, csv_header)
+
+        print("Time history data saved successfully.")
+
+    except Exception as e:
+        print(f"Error saving time history results: {e}")

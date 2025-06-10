@@ -1,7 +1,5 @@
-# riemann_solvers.py
 import numpy as np
 from utils import conserved_to_primitive, calculate_flux 
-# from constants import EPSILON 
 import constants 
 
 def hll_solver(U_L_input, U_R_input, gamma_val):

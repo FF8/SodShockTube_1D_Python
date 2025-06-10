@@ -6,7 +6,7 @@ import os
 import constants
 from solver_engine import run_simulation
 from utils import conserved_to_primitive
-from postprocessing_1d import save_results_to_csv, plot_simulation_results_1d
+from postprocessing_1d import plot_simulation_results_1d, save_time_history_data
 
 gamma = 1.4
 
@@ -110,13 +110,13 @@ def main():
     current_bc_right = str(bc_params.get("right_bc_type", constants.BC_REFLECTIVE))
     
     output_ctrl = config_data.get("output_control", {})
+    save_interval_sim = float(output_ctrl.get("save_interval", -1.0)) # Read interval, default to -1 (off)
     do_save_results = output_ctrl.get("save_results", False)
     do_plot_results = output_ctrl.get("plot_results", False)
     plot_analytical = output_ctrl.get("plot_against_analytical_0.2s", False)
-    # create_animation_flag = output_ctrl.get("create_animation", False)
 
     # Fixed output directory name for simplicity if overwriting
-    fixed_output_dir_name = "output_1d_results" 
+    #fixed_output_dir_name = "output_1d_results" 
 
 
     run_params_for_saving = {
@@ -132,22 +132,13 @@ def main():
     print(f"\n--- STARTING SIMULATION (using gamma = {gamma}) ---")
     
     output_ctrl = config_data.get("output_control", {})
-    create_animation_flag = output_ctrl.get("create_animation", False)
-    
-    # Define animation parameters
-    animation_parameters = {
-        "dir": "animation_frames", # Folder to save frames
-        "freq": 10 # Save a frame every 10 iterations
-    }
-    
+
     cell_centers_res, T_res, U_res_list = run_simulation(
         N_cells=N_cells_sim, domain_length=domain_length_sim, t_final=t_final_sim, C_cfl=C_cfl_sim,
         problem_type=problem_type_sim, scheme=current_scheme, time_integrator=current_time_integrator,
         riemann_solver=current_riemann_solver, bc_left=current_bc_left, bc_right=current_bc_right,
         hllc_wave_speed_config=current_hllc_wave_speeds,
-        gamma_eos=gamma,
-        create_animation_flag=create_animation_flag,
-        animation_params=animation_parameters
+        gamma_eos=gamma, save_interval=save_interval_sim
     )
 
     if U_res_list:
@@ -160,15 +151,13 @@ def main():
         run_params_for_saving["T_final_achieved_output"] = T_final_achieved
 
         if do_save_results:
-            save_results_to_csv(
-                fixed_output_dir_name, # Use fixed name, will overwrite
-                run_params_for_saving, 
+            history_output_dir = "output_1d_history"
+            save_time_history_data(
+                history_output_dir,
+                run_params_for_saving,
                 cell_centers_res,
-                T_final_achieved, 
-                rho_numerical,
-                p_numerical,
-                u_numerical,
-                e_internal_numerical
+                T_res,
+                U_res_list
             )
         
         if do_plot_results:

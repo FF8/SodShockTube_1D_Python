@@ -3,11 +3,11 @@
         "N_cells": 200,
         "domain_length": 1.0,
         "t_final": 0.2,
-        "CFL": 0.5,
+        "CFL": 0.2,
         "problem_type": "sod_shock_tube"
     },
     "numerical_schemes": {
-        "spatial_scheme": "linear", 
+        "spatial_scheme": "muscl", 
         "time_integrator": "ssprk2",
         "riemann_solver": "hllc",
         "hllc_wave_speeds": "roe_einfeldt" 
@@ -24,6 +24,6 @@
         "save_results": true,
         "plot_results": true,
         "plot_against_analytical_0.2s": true,
-        "create_animation": false 
+        "save_interval": 0.005 
     }
 }

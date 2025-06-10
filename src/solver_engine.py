@@ -7,7 +7,6 @@ from initial_conditions import initialize_state
 from utils import conserved_to_primitive, primitive_to_conserved
 from riemann_solvers import hll_solver, hllc_solver
 from schemes_spatial import calculate_muscl_slopes, minmod_limiter 
-from postprocessing_1d import plot_and_save_single_frame
 
 # gamma would be passed as an argument to functions here, not global to this file
 # unless run_simulation sets a module-level one for its callees if they are also in this file
@@ -108,9 +107,10 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
                    scheme, time_integrator, riemann_solver,
                    bc_left, bc_right,
                    hllc_wave_speed_config,
-                   gamma_eos, create_animation_flag=False, animation_params={}): 
+                   gamma_eos, save_interval=-1.0): 
     """
     Main loop for the 1D Euler solver.
+    If save_interval > 0, stores snapshots at specified time intervals.
     """
 
     dx, cell_centers, cell_interfaces = setup_mesh(N_cells, domain_length)
@@ -118,28 +118,23 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
     U_current = initialize_state(N_cells, cell_centers, cell_interfaces, gamma_eos,
                                     problem_type=problem_type, ) 
     
-
-    # --- Setup for Animation Frames ---
-    if create_animation_flag:
-        anim_dir = animation_params.get("dir", "animation_frames")
-        anim_freq = animation_params.get("freq", 20) # Save a frame every 20 iterations
-        if os.path.exists(anim_dir):
-            shutil.rmtree(anim_dir) # Clear old frames
-        os.makedirs(anim_dir)
-        print(f"Animation frames will be saved in: {anim_dir}")
     
     t = 0.0
     iteration = 0
     results_t = [t]
     results_U = [U_current.copy()]
 
+    # --- logic for time-based saving ---
+    save_next_time = save_interval
+    if save_interval <= 0: # If interval is invalid or not set, only save final result
+        save_next_time = t_final + 1.0 # Ensure it won't trigger
+
+
     print(f"Starting 1D simulation: N_cells={N_cells}, Scheme={scheme}, Integrator={time_integrator}, Riemann={riemann_solver}", end="")
     if riemann_solver == constants.SOLVER_HLLC:
         print(f" (HLLC Wave Speeds: {hllc_wave_speed_config})", end="")
     print(f"\nBC Left: {bc_left}, BC Right: {bc_right}, t_final={t_final}, C_cfl={C_cfl}")
 
-
-    frame_count = 0
     while t < t_final:
         # --- Calculate Time Step (dt) based on CFL condition ---
         S_max_global = 0.0
@@ -150,17 +145,19 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
             a_i = np.sqrt(gamma_eos * max(p_i, constants.EPSILON) / max(rho_i, constants.EPSILON)) 
             S_max_global = max(S_max_global, abs(u_i) + a_i)
         
-        current_dt_for_step = C_cfl * dx / (S_max_global + constants.EPSILON) 
-        if t + current_dt_for_step > t_final:
-            current_dt_for_step = t_final - t
-        if current_dt_for_step <= constants.EPSILON * 10: # Adjusted threshold, relative to EPSILON
-            print(f"Time step too small ({current_dt_for_step:.2e}), stopping.")
-            break
-        if current_dt_for_step <= 0:
-            print(f"Error: Negative or zero dt ({current_dt_for_step:.2e}). Stopping.")
-            break
+        dt = C_cfl * dx / (S_max_global + constants.EPSILON) 
         
-        dt = current_dt_for_step # Use this for the update
+        # --- logic to clip dt to not miss a save point ---
+        if save_interval > 0 and t < save_next_time and (t + dt) >= save_next_time:
+            dt = save_next_time - t + constants.EPSILON * 1e-2 # Step exactly to the save time + tiny amount
+        
+        if t + dt > t_final:
+            dt = t_final - t
+        
+        if dt <= constants.EPSILON * 10:
+            print(f"Time step too small ({dt:.2e}), stopping.")
+            break
+
 
         # Prepare arguments for calculate_rhs_1d_for_stage
         rhs_args = {
@@ -182,40 +179,30 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
             RHS_intermediate = calculate_rhs_for_stage(U_intermediate, **rhs_args)
             U_next = 0.5 * U_current + 0.5 * (U_intermediate + dt * RHS_intermediate)
         else:
-            raise ValueError(f"Unknown time integrator: {time_integrator}")
-        
-        # --- Save Animation Frame Periodically ---
-        if create_animation_flag and iteration % anim_freq == 0:
-            rho_frame, u_frame, p_frame = conserved_to_primitive(U_current, gamma_eos)
-            e_frame = p_frame / ((gamma_eos - 1.0) * rho_frame + constants.EPSILON)
-            # Create a dictionary of parameters for the plot title
-            current_run_params = {
-                "N_cells": N_cells, "CFL": C_cfl, "scheme": scheme, "integrator": time_integrator,
-                "solver": riemann_solver, "hllc_wave_speeds": hllc_wave_speed_config
-            }
-            plot_and_save_single_frame(
-                anim_dir, frame_count, cell_centers, t,
-                rho_frame, p_frame, u_frame, e_frame,
-                current_run_params
-            )
-            frame_count += 1
-            print(f"  Saved animation frame {frame_count-1} at t={t:.4f}")
-
+            raise ValueError(f"Unknown time integrator: {time_integrator}")      
 
         U_current = U_next
         t += dt
         iteration += 1
 
-        
-        if iteration % 50 == 0: 
+        # ---logic for saving snapshots ---
+        if save_interval > 0 and t >= save_next_time:
+            print(f"Iter: {iteration}, Time: {t:.4f}, dt: {dt:.3e} --- Saving snapshot")
             results_t.append(t)
             results_U.append(U_current.copy())
+            save_next_time += save_interval # Set the next save time
+        elif iteration % 100 == 0: # Keep periodic printing to console
             print(f"Iter: {iteration}, Time: {t:.4f}, dt: {dt:.3e}")
-            if np.any(np.isnan(U_current)) or np.any(np.isinf(U_current)):
-                print("Error: NaN or Inf detected in solution. Stopping.")
-                break
-    
+        
+        if np.any(np.isnan(U_current)) or np.any(np.isinf(U_current)):
+            print("Error: NaN or Inf detected in solution. Stopping.")
+            break
+
+
     print(f"Simulation finished at t={t:.4f} after {iteration} iterations.")
-    results_t.append(t) 
-    results_U.append(U_current.copy())
+    if results_t[-1] < t: # Avoid duplicating if last step was a save step
+        results_t.append(t) 
+        results_U.append(U_current.copy())
+
+
     return cell_centers, results_t, results_U
