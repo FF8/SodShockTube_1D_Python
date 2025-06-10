@@ -111,7 +111,7 @@ def hllc_solver(U_L_input, U_R_input, gamma_val,
 
     # Step 3: Calculate star region pressure p_star
     # Using R-state based formula (Toro pg. 325, also derived from pK + rhoK(uK-SK)(uK-SM))
-    p_star = rho_R * (u_R - S_R) * (S_M - u_R) + p_R 
+    p_star = rho_R * (S_R - u_R) * (S_M - u_R) + p_R 
     p_star = max(constants.EPSILON, p_star) # Ensure positivity
 
     U_L_star, U_R_star = np.zeros(3), np.zeros(3)
