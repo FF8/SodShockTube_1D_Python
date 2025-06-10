@@ -2,29 +2,7 @@
 
 
 
-## Some Results
 
-### Sod's Shock Tube with Transmissive Boundaries
-
-Animation showing the time evolution of density, pressure, velocity, and internal energy up to t=0.2s with transmissive (outflow) boundary conditions. The characteristic rarefaction wave, contact discontinuity, and shock wave can be seen propagating through the domain.
-
-<video src="./doc/transmissive_boundaries.mp4" controls="controls" style="max-width: 730px;"></video>
-
-*(Simulation run with: MUSCL, SSPRK2, HLLC)*
-
-### Comparison with Analytical Solution
-
-The solver's results show good agreement with the analytical solution for Sod's problem at t=0.2s. The higher-order MUSCL scheme captures the shock and contact discontinuities, though some numerical diffusion is still present as expected.
-
-![HLLC MUSCL vs Analytical Solution](./doc/Figure_hllc_vs_analytic.png)
-
-### Shock Reflection with Reflective Boundaries
-
-This animation shows a more complex case where the initial shock wave propagates to the right, hits a solid (reflective) wall, and reflects back into the domain, creating complex wave interactions.
-
-<video src="./doc/reflective_boundaries.mp4" controls="controls" style="max-width: 730px;"></video>
-
-*(Simulation run with: MUSCL, SSPRK2, HLL for stability at the wall)*
 
 ## Overview
 
@@ -66,6 +44,32 @@ This code has been developed for learning purposes to explore fundamental concep
     * Modular Python code structure (e.g., `riemann_solvers.py`, `schemes_spatial.py`, etc.).
     * Automated saving of results to uniquely named directories or a fixed "output" folder.
     * Separate post-processing script for plotting results and creating animations from saved frames.
+
+
+## Some Results
+
+### Sod's Shock Tube with Transmissive Boundaries
+
+Animation showing the time evolution of density, pressure, velocity, and internal energy up to t=0.2s with transmissive (outflow) boundary conditions. The characteristic rarefaction wave, contact discontinuity, and shock wave can be seen propagating through the domain.
+
+<video src="./doc/transmissive_boundaries.mp4" controls="controls" style="max-width: 730px;"></video>
+![](./doc/transmissive_boundaries.mp4)
+
+*(Simulation run with: MUSCL, SSPRK2, HLLC)*
+
+### Comparison with Analytical Solution
+
+The solver's results show good agreement with the analytical solution for Sod's problem at t=0.2s. The higher-order MUSCL scheme captures the shock and contact discontinuities, though some numerical diffusion is still present as expected.
+
+![HLLC MUSCL vs Analytical Solution](./doc/Figure_hllc_vs_analytic.png)
+
+### Shock Reflection with Reflective Boundaries
+
+This animation shows a more complex case where the initial shock wave propagates to the right, hits a solid (reflective) wall, and reflects back into the domain, creating complex wave interactions.
+
+<video src="./doc/reflective_boundaries.mp4" controls="controls" style="max-width: 730px;"></video>
+
+*(Simulation run with: MUSCL, SSPRK2, HLL for stability at the wall)*
 
 
 ## Running the Code
