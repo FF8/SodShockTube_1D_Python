@@ -138,7 +138,7 @@ def main():
         problem_type=problem_type_sim, scheme=current_scheme, time_integrator=current_time_integrator,
         riemann_solver=current_riemann_solver, bc_left=current_bc_left, bc_right=current_bc_right,
         hllc_wave_speed_config=current_hllc_wave_speeds,
-        gamma_eos=gamma, save_interval=save_interval_sim
+        gamma_eos=gamma, N_ghost=2, save_interval=save_interval_sim
     )
 
     if U_res_list:

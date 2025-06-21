@@ -1,5 +1,3 @@
-# Functions related to spatial discretization schemes, e.g., MUSCL.
-
 import numpy as np
 
 def minmod_limiter(a, b):
@@ -26,33 +24,32 @@ def minmod_limiter(a, b):
                     0.0,  # Slope is zero if signs differ or one is zero
                     np.where(np.abs(a) < np.abs(b), a, b)) # Else, pick the one with smaller magnitude
 
-def calculate_muscl_slopes(U_current, N_cells, limiter_func=minmod_limiter):
+def calculate_muscl_slopes(U_current, N_ghost, limiter_func=minmod_limiter):
     """
-    Calculates the limited slopes for each cell for MUSCL reconstruction.
+    Calculates the limited slopes for each cell on a grid with ghost cells.
+    This version correctly handles the ghost cell layout.
 
     Args:
-        U_current (np.ndarray): Array of current cell-averaged conserved states (shape: 3, N_cells).
-        N_cells (int): Number of cells.
-        limiter_func (callable): The slope limiter function to use 
-                                 (e.g., minmod_limiter, van_leer_limiter).
+        U_current (np.ndarray): Array of current conserved states, including ghost cells.
+        N_ghost (int): Number of ghost cells on each side.
+        limiter_func (callable): The slope limiter function to use.
 
     Returns:
-        np.ndarray: Array of limited slopes (shape: 3, N_cells).
+        np.ndarray: Array of limited slopes for all cells.
     """
-    slopes_s = np.zeros_like(U_current) # Initialize slopes to zero
+    N_total = U_current.shape[1]
+    slopes_s = np.zeros_like(U_current)
 
-    if N_cells < 3:
-        # Not enough cells for centered differences needed by most limiters for interior.
-        # Slopes remain zero, effectively first-order.
-        return slopes_s
-
-    # Handle interior cells
-    for i in range(1, N_cells - 1):
+    # Loop from the cell before the first physical cell (i.e., the innermost ghost cell)
+    # up to the cell before the last cell in the entire array.
+    # This is necessary to compute slopes for ALL cells that are needed for reconstruction
+    # at the physical interfaces.
+    for i in range(N_ghost - 1, N_total - 1):
         # Difference between current cell and left neighbor
         delta_L = U_current[:, i] - U_current[:, i-1]
         # Difference between right neighbor and current cell
         delta_R = U_current[:, i+1] - U_current[:, i]
         
-        slopes_s[:, i] = limiter_func(delta_L, delta_R) # Applied component-wise
+        slopes_s[:, i] = limiter_func(delta_L, delta_R)
 
     return slopes_s

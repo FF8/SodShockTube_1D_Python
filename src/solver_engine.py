@@ -7,98 +7,83 @@ from initial_conditions import initialize_state
 from utils import conserved_to_primitive, primitive_to_conserved
 from riemann_solvers import hll_solver, hllc_solver
 from schemes_spatial import calculate_muscl_slopes, minmod_limiter 
+from boundary_conditions import apply_boundary_conditions
 
 # gamma would be passed as an argument to functions here, not global to this file
 # unless run_simulation sets a module-level one for its callees if they are also in this file
 
-def calculate_rhs_for_stage(U_stage, N_cells, dx, gamma_eos, scheme,
-                            riemann_solver_choice,
-                            bc_left, bc_right,
+import numpy as np
+from utils import primitive_to_conserved, conserved_to_primitive
+import constants
+# Assume the new apply_boundary_conditions and the rigorous calculate_muscl_slopes are available
+
+def calculate_rhs_for_stage(U_stage, N_cells, N_ghost, physical_slice, dx, gamma_eos, scheme,
+                            riemann_solver_choice, bc_left, bc_right,
                             hllc_wave_method):
-
-
     """
-    Calculates the Right-Hand Side (RHS = dU/dt) for a given 1D stage U.
-    Includes MUSCL reconstruction and chosen Riemann solver.
-    U_stage is expected to be (3, N_cells)
-    """
-    slopes_s = np.zeros_like(U_stage) # Array for limited slopes, shape (3, N_cells)
-
-    if scheme == constants.SCHEME_MUSCL:
-        slopes_s = calculate_muscl_slopes(U_stage, N_cells, limiter_func=minmod_limiter)
+    Calculates the Right-Hand Side (RHS = dU/dt) for a stage U on a grid with ghost cells.
     
-    # F_numerical_fluxes stores fluxes at interfaces: F_{i-1/2} and F_{i+1/2} for cell i
-    # Size: (3, N_cells + 1). F_numerical_fluxes[:, j] is flux at interface j.
-    # Interface 0: left of cell 0. Interface N_cells: right of cell N_cells-1.
-    F_numerical_fluxes = np.zeros((3, N_cells + 1))
+    Args:
+        U_stage (np.ndarray): Full array (3, N_total) for the current stage.
+        N_cells (int): Number of PHYSICAL cells.
+        N_ghost (int): Number of ghost cells on each side.
+        physical_slice (slice): Slice object for the physical domain.
+        ... other parameters
+    """
+    
+    # --- Step 1: Apply Boundary Conditions ---
+    # This populates the ghost cell regions of U_stage for this specific stage.
+    U_stage = apply_boundary_conditions(U_stage, N_ghost, bc_left, bc_right, gamma_eos)
 
-    for j_interface_idx in range(N_cells + 1): # Loop through all N_cells+1 interfaces
-        U_L_eff = np.zeros(3) # Effective state to the LEFT of interface j
-        U_R_eff = np.zeros(3) # Effective state to the RIGHT of interface j
+    # --- Step 2: Perform Data Reconstruction (if not first-order) ---
+    slopes_s = np.zeros_like(U_stage)
+    if scheme == constants.SCHEME_MUSCL:
+        # Use the rigorous slope calculator that works with ghost cells
+        slopes_s = calculate_muscl_slopes(U_stage, N_ghost, limiter_func=minmod_limiter)
+    
+    # --- Step 3: Calculate Fluxes at All Physical Interfaces ---
+    N_total = U_stage.shape[1]
+    # We need N_total+1 interfaces for a grid with N_total cells
+    F_numerical_fluxes = np.zeros((3, N_total + 1)) 
 
-        if j_interface_idx == 0:  # Leftmost boundary interface (left of cell 0)
-            # State from physical cell 0
-            U_physical_cell_R = U_stage[:, 0] 
-            rho_phys_R, u_phys_R, p_phys_R = conserved_to_primitive(U_physical_cell_R, gamma_eos)
-            
-            if bc_left == constants.BC_REFLECTIVE:
-                # Ghost cell state (L_eff)
-                U_L_eff = primitive_to_conserved(rho_phys_R, -u_phys_R, p_phys_R, gamma_eos)
-            else: # Transmissive (default)
-                U_L_eff = U_physical_cell_R # Ghost state = first physical cell state (first-order for ghost)
+    # Loop through the interfaces of the physical cells.
+    # The first physical interface is at index `N_ghost` (left of cell `N_ghost`).
+    # The last physical interface is at index `N_ghost + N_cells` (right of the last physical cell).
+    for j in range(N_ghost, N_ghost + N_cells + 1):
+        # Cell indices to the left and right of interface j
+        cell_idx_L = j - 1 
+        cell_idx_R = j   
 
-            # Right state for Riemann problem is from cell 0, reconstructed if MUSCL
-            if scheme == constants.SCHEME_MUSCL:
-                U_R_eff = U_stage[:, 0] - 0.5 * slopes_s[:, 0] # Value at LEFT face of cell 0
-            else: # First-order
-                U_R_eff = U_stage[:, 0]
-
-        elif j_interface_idx == N_cells:  # Rightmost boundary interface (right of cell N_cells-1)
-            # State from physical cell N_cells-1
-            U_physical_cell_L = U_stage[:, N_cells-1]
-            rho_phys_L, u_phys_L, p_phys_L = conserved_to_primitive(U_physical_cell_L, gamma_eos)
-            
-            # Left state for Riemann problem is from cell N_cells-1, reconstructed if MUSCL
-            if scheme == constants.SCHEME_MUSCL:
-                U_L_eff = U_stage[:, N_cells-1] + 0.5 * slopes_s[:, N_cells-1] # Value at RIGHT face of cell N-1
-            else: # First-order
-                U_L_eff = U_stage[:, N_cells-1]
-
-            if bc_right == constants.BC_REFLECTIVE:
-                # Ghost cell state (R_eff)
-                U_R_eff = primitive_to_conserved(rho_phys_L, -u_phys_L, p_phys_L, gamma_eos)
-            else: # Transmissive (default)
-                U_R_eff = U_physical_cell_L # Ghost state = last physical cell state (first-order for ghost)
-            
-        else:  # Internal interface j (between cell j-1 (index L) and cell j (index R))
-            cell_idx_L = j_interface_idx - 1 
-            cell_idx_R = j_interface_idx   
-
-            if scheme == constants.SCHEME_MUSCL:
-                U_L_eff = U_stage[:, cell_idx_L] + 0.5 * slopes_s[:, cell_idx_L]
-                U_R_eff = U_stage[:, cell_idx_R] - 0.5 * slopes_s[:, cell_idx_R]
-            else: # First-order
-                U_L_eff = U_stage[:, cell_idx_L]
-                U_R_eff = U_stage[:, cell_idx_R]
+        # Reconstruct states at the interface j
+        if scheme == constants.SCHEME_MUSCL:
+            U_L_eff = U_stage[:, cell_idx_L] + 0.5 * slopes_s[:, cell_idx_L]
+            U_R_eff = U_stage[:, cell_idx_R] - 0.5 * slopes_s[:, cell_idx_R]
+        else: # First-order Godunov
+            U_L_eff = U_stage[:, cell_idx_L]
+            U_R_eff = U_stage[:, cell_idx_R]
         
-        # Call chosen Riemann solver
+        # Call chosen Riemann solver to get the flux at interface j
         if riemann_solver_choice == constants.SOLVER_HLL:
-            F_numerical_fluxes[:, j_interface_idx] = hll_solver(U_L_eff, U_R_eff, gamma_eos)
+            F_numerical_fluxes[:, j] = hll_solver(U_L_eff, U_R_eff, gamma_eos)
         elif riemann_solver_choice == constants.SOLVER_HLLC:
-            F_numerical_fluxes[:, j_interface_idx] = hllc_solver(U_L_eff, U_R_eff, gamma_eos, 
-                                                                wave_speed_method=hllc_wave_method)
+            F_numerical_fluxes[:, j] = hllc_solver(U_L_eff, U_R_eff, gamma_eos, 
+                                                   wave_speed_method=hllc_wave_method)
         else:
             raise ValueError(f"Unknown Riemann solver: {riemann_solver_choice}")
 
-    # Compute Right-Hand Side (RHS) for each cell
-    RHS_1D = np.zeros_like(U_stage) # Shape (3, N_cells)
-    for i_cell in range(N_cells):
-        # RHS_i = - (Flux_right_face_of_cell_i - Flux_left_face_of_cell_i) / dx
-        # Flux at right face of cell i_cell is F_numerical_fluxes[:, i_cell+1]
-        # Flux at left face of cell i_cell is F_numerical_fluxes[:, i_cell]
-        RHS_1D[:, i_cell] = -(F_numerical_fluxes[:, i_cell+1] - F_numerical_fluxes[:, i_cell]) / dx
+    # --- Step 4: Compute the Final RHS for each physical cell ---
+    # The RHS is only computed for the physical cells, so the size is (3, N_total)
+    RHS_1D = np.zeros_like(U_stage)
+    
+    # Loop ONLY over the physical cells
+    for i in range(physical_slice.start, physical_slice.stop):
+        # RHS_i = - (Flux_right_face - Flux_left_face) / dx
+        # Right face of cell i is interface i+1
+        # Left face of cell i is interface i
+        RHS_1D[:, i] = -(F_numerical_fluxes[:, i+1] - F_numerical_fluxes[:, i]) / dx
         
     return RHS_1D
+
 
 
 
@@ -107,16 +92,17 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
                    scheme, time_integrator, riemann_solver,
                    bc_left, bc_right,
                    hllc_wave_speed_config,
-                   gamma_eos, save_interval=-1.0): 
+                   gamma_eos,  N_ghost=2,
+                   save_interval=-1.0): 
     """
     Main loop for the 1D Euler solver.
     If save_interval > 0, stores snapshots at specified time intervals.
     """
 
-    dx, cell_centers, cell_interfaces = setup_mesh(N_cells, domain_length)
+    dx, cell_centers, cell_interfaces, p_slice = setup_mesh(N_cells, domain_length, N_ghost)
     
-    U_current = initialize_state(N_cells, cell_centers, cell_interfaces, gamma_eos,
-                                    problem_type=problem_type, ) 
+    U_current = initialize_state(N_cells, N_ghost, p_slice, cell_centers, cell_interfaces, gamma_eos,
+                                    problem_type=problem_type) 
     
     
     t = 0.0
@@ -138,7 +124,7 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
     while t < t_final:
         # --- Calculate Time Step (dt) based on CFL condition ---
         S_max_global = 0.0
-        for i in range(N_cells):
+        for i in range(p_slice.start, p_slice.stop):
             # Ensure primitive conversion uses the passed gamma_eos
             rho_i, u_i, p_i = conserved_to_primitive(U_current[:, i], gamma_eos)
             # Ensure sound speed calculation uses the passed gamma_eos and positive rho, p
@@ -161,7 +147,8 @@ def run_simulation(N_cells, domain_length, t_final, C_cfl,
 
         # Prepare arguments for calculate_rhs_1d_for_stage
         rhs_args = {
-            "N_cells": N_cells, "dx": dx, "gamma_eos": gamma_eos, "scheme": scheme,
+            "N_cells": N_cells, "N_ghost": N_ghost, "physical_slice": p_slice,
+            "dx": dx, "gamma_eos": gamma_eos, "scheme": scheme,
             "riemann_solver_choice": riemann_solver,
             "bc_left": bc_left, "bc_right": bc_right,
             "hllc_wave_method": hllc_wave_speed_config

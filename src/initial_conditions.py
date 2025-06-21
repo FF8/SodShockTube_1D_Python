@@ -1,13 +1,15 @@
 import numpy as np
 from utils import primitive_to_conserved
 
-def initialize_state(N_cells, cell_centers, cell_interfaces, gamma_val,
+def initialize_state(N_cells, N_ghost, physical_slice, cell_centers, cell_interfaces, gamma_val,
                         problem_type="sod_shock_tube", **problem_params):
     """
     Initializes the 1D conserved state vector U.
 
     Args:
         N_cells (int): Number of cells.
+        N_ghost (int): Number of ghost cells on each side.
+        physical_slice (slice): A slice object to access the physical part of the array.
         cell_centers (np.ndarray): Coordinates of cell centers.
         cell_interfaces (np.ndarray): Coordinates of cell interfaces (used for diaphragm).
         gamma_val (float): Adiabatic index.
@@ -17,9 +19,11 @@ def initialize_state(N_cells, cell_centers, cell_interfaces, gamma_val,
                           For "uniform_flow_1d": rho0, u0, p0.
 
     Returns:
-        np.ndarray: Initialized 1D state vector U (shape: 3, N_cells).
+        np.ndarray: Initialized 1D state vector U (shape: 3, N_cells + 2*N_ghost).
     """
-    U_initial = np.zeros((3, N_cells)) # rho, rho*u, E
+    # Total number of cells in the computational array
+    N_total = N_cells + 2 * N_ghost
+    U_initial = np.zeros((3, N_total)) # rho, rho*u, E
 
     if problem_type == "sod_shock_tube":
         print(f"\nInitializing 1D Sod Shock Tube for {N_cells} cells:")
@@ -34,7 +38,14 @@ def initialize_state(N_cells, cell_centers, cell_interfaces, gamma_val,
         
         # Use middle of domain defined by interfaces as diaphragm position
         # This assumes cell_interfaces are for the full domain [0, Lx]
-        diaphragm_x_position = (cell_interfaces[0] + cell_interfaces[-1]) / 2.0
+        #diaphragm_x_position = (cell_interfaces[0] + cell_interfaces[-1]) / 2.0
+
+        # Diaphragm is in the middle of the PHYSICAL domain.
+        # We must use the indices corresponding to the physical interfaces.
+        first_physical_interface_idx = N_ghost
+        last_physical_interface_idx = N_ghost + N_cells
+        diaphragm_x_position = (cell_interfaces[first_physical_interface_idx] + 
+                                cell_interfaces[last_physical_interface_idx]) / 2.0       
         
         print(f"  Left State: rho={rho_L}, u={u_L}, p={p_L}")
         print(f"  Right State: rho={rho_R}, u={u_R}, p={p_R}")
@@ -43,11 +54,15 @@ def initialize_state(N_cells, cell_centers, cell_interfaces, gamma_val,
         U_L_conserved = primitive_to_conserved(rho_L, u_L, p_L, gamma_val)
         U_R_conserved = primitive_to_conserved(rho_R, u_R, p_R, gamma_val)
 
-        for i in range(N_cells):
+        # Loop over the PHYSICAL cells to set the initial conditions
+        # The loop range is defined by the `physical_slice` object
+        for i in range(physical_slice.start, physical_slice.stop):
+            # Check the position of the cell center relative to the diaphragm
             if cell_centers[i] < diaphragm_x_position:
                 U_initial[:, i] = U_L_conserved
             else:
                 U_initial[:, i] = U_R_conserved
+    
     
     elif problem_type == "uniform_flow_1d":
         rho0 = problem_params.get("rho0", 1.0)
@@ -58,7 +73,7 @@ def initialize_state(N_cells, cell_centers, cell_interfaces, gamma_val,
         # Fill the entire U_initial array with this constant state
         for i in range(N_cells):
             U_initial[:, i] = U_cell_conserved
-            
+          
             
     else:
         raise ValueError(f"Unknown 1D problem_type in initialize_state_1d: {problem_type}")
