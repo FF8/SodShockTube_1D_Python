@@ -47,3 +47,32 @@ def test_conversion_roundtrip(basic_states):
     
     # THEN: The result should be very close to the original
     assert np.allclose(prim_L_original, prim_L_new)
+
+
+def test_minmod_limiter():
+    """Tests the three main cases of the minmod limiter."""
+    # Case 1: Same sign, a has smaller magnitude
+    assert schemes_spatial.minmod_limiter(2, 5) == 2
+    # Case 2: Different signs
+    assert schemes_spatial.minmod_limiter(2, -5) == 0
+    # Case 3: One value is zero
+    assert schemes_spatial.minmod_limiter(0, 5) == 0
+
+
+# --- Unit Tests for Riemann Solvers ---
+
+def test_hllc_consistency(basic_states):
+    """
+    Tests that if U_L == U_R, the HLLC flux equals the analytical flux.
+    This is a fundamental property of a consistent Riemann solver.
+    """
+    # GIVEN: Identical left and right states
+    gamma = basic_states["gamma"]
+    U_L = basic_states["U_L"]
+    
+    # WHEN: We calculate the analytical flux and the HLLC flux
+    analytical_flux = utils.calculate_flux(U_L, gamma)
+    hllc_flux = riemann_solvers.hllc_solver(U_L, U_L, gamma)
+    
+    # THEN: The two fluxes must be approximately equal
+    assert np.allclose(analytical_flux, hllc_flux)
